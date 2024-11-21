@@ -1,0 +1,140 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String       @id @default(uuid())
+  email             String       @unique 
+  username          String       @unique 
+  passwordHash      String
+  accountBalance    Decimal      @default(0.0)
+  riskLevel         RiskLevel    @default(MEDIUM)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  orders            Order[]
+  positions         Position[]
+  transactions      Transaction[]
+  exposures         Exposure[]
+
+  @@index([email], name: "idx_user_email")
+  @@index([username], name: "idx_user_username")
+}
+
+model OptionsContract {
+  id               String        @id @default(uuid())
+  symbol           String        
+  strikePrice      Decimal
+  expirationDate   DateTime
+  contractSize     Int           @default(100)
+  optionType       OptionType
+  currentPrice     Decimal
+  orders           Order[]
+  positions        Position[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([symbol, strikePrice, expirationDate, optionType])
+  @@index([symbol, expirationDate], name: "idx_contract_symbol_expiry")
+}
+
+model Order {
+  id               String        @id @default(uuid())
+  userId           String
+  contractId       String
+  orderType        OrderType
+  direction        Direction
+  quantity         Int
+  limitPrice       Decimal?
+  status           OrderStatus   @default(PENDING)
+  filledQuantity   Int           @default(0)
+  filledPrice      Decimal?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user             User          @relation(fields: [userId], references: [id])
+  contract         OptionsContract @relation(fields: [contractId], references: [id])
+
+  @@index([userId], name: "idx_order_user")
+  @@index([contractId], name: "idx_order_contract")
+}
+
+model Position {
+  id               String        @id @default(uuid())
+  userId           String
+  contractId       String
+  quantity         Int
+  averagePrice     Decimal
+  currentPnl       Decimal       @default(0.0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user             User          @relation(fields: [userId], references: [id])
+  contract         OptionsContract @relation(fields: [contractId], references: [id])
+
+  @@index([userId, contractId], name: "idx_position_user_contract")
+}
+
+model Transaction {
+  id               String        @id @default(uuid())
+  userId           String
+  amount           Decimal
+  type             TransactionType
+  description      String?
+  createdAt        DateTime      @default(now())
+
+  user             User          @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt], name: "idx_transaction_user_date")
+}
+
+model Exposure {
+  id               String        @id @default(uuid())
+  userId           String
+  symbol           String
+  exposureAmount   Decimal
+  createdAt        DateTime      @default(now())
+
+  user             User          @relation(fields: [userId], references: [id])
+
+  @@index([userId, symbol], name: "idx_exposure_user_symbol")
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum OptionType {
+  CALL
+  PUT
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum Direction {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  REJECTED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRADE
+}
